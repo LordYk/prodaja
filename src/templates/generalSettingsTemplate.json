@@ -1,9 +1,9 @@
 {
-    "language": "en",
+    "language": "ru",
     "voiceGender": "male",
     "prefix": "!",
     "muteInGameBotMessages": false,
-    "trademark": "rustplusplus",
+    "trademark": "not showing",
     "inGameCommandsEnabled": true,
     "fcmAlarmNotificationEnabled": false,
     "fcmAlarmNotificationEveryone": false,
