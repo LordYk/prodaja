@@ -1,14 +1,16 @@
 /*
     RestoreSettingsFromDiscord.js
 
-    При редеплое на Railway файл instances/*.json пропадает.
-    Эта функция читает состояние кнопок и select-меню прямо из Discord-канала settings
-    и восстанавливает generalSettings и notificationSettings в instance.
-
-    Вызывается из SetupSettingsMenu перед тем как решить — пересоздавать канал или нет.
+    При редеплое на Railway файлы instance и credentials пропадают.
+    Эта функция читает состояние из Discord-канала settings и восстанавливает:
+    - generalSettings и notificationSettings (из кнопок/select)
+    - credentials (из footer сообщения "👤 Аккаунт")
 */
 
 const Discord = require('discord.js');
+const Fs = require('fs');
+const Path = require('path');
+
 const DiscordTools = require('./discordTools.js');
 
 const SUCCESS = Discord.ButtonStyle.Success;
@@ -29,11 +31,38 @@ module.exports = async (client, guild) => {
 
     if (messages.length === 0) return;
 
+    /* ── Восстанавливаем credentials из сообщения "👤 Аккаунт" ──────────── */
+    for (const msg of messages) {
+        if (msg.author.id !== client.user.id) continue;
+        if (msg.embeds.length === 0) continue;
+        if (msg.embeds[0].title !== '👤 Аккаунт') continue;
+
+        const footer = msg.embeds[0].footer?.text;
+        if (!footer) continue;
+
+        try {
+            const decoded = Buffer.from(footer, 'base64').toString('utf8');
+            const credentials = JSON.parse(decoded);
+
+            const credPath = Path.join(__dirname, '..', '..', 'credentials', `${guild.id}.json`);
+            Fs.mkdirSync(Path.dirname(credPath), { recursive: true });
+            Fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2));
+
+            client.log(client.intlGet(null, 'infoCap'),
+                `[RestoreSettings] Credentials restored from Discord for guild ${guild.id}`);
+        }
+        catch (e) {
+            client.log(client.intlGet(null, 'errorCap'),
+                `[RestoreSettings] Failed to restore credentials: ${e.message}`, 'error');
+        }
+        break;
+    }
+
+    /* ── Восстанавливаем настройки из кнопок/select ─────────────────────── */
     const gs = instance.generalSettings;
     const ns = instance.notificationSettings;
 
     for (const message of messages) {
-        /* --- Обрабатываем SELECT МЕНЮ --- */
         for (const row of message.components) {
             for (const component of row.components) {
                 if (component.type === Discord.ComponentType.StringSelect) {
@@ -42,90 +71,58 @@ module.exports = async (client, guild) => {
                     const val = selected.value;
 
                     switch (component.customId) {
-                        case 'language':
-                            gs.language = val;
-                            break;
-                        case 'VoiceGender':
-                            gs.voiceGender = val;
-                            break;
-                        case 'Prefix':
-                            gs.prefix = val;
-                            break;
-                        case 'Trademark':
-                            gs.trademark = val;
-                            break;
-                        case 'CommandDelay':
-                            gs.commandDelay = Number(val);
-                            break;
+                        case 'language':       gs.language = val; break;
+                        case 'VoiceGender':    gs.voiceGender = val; break;
+                        case 'Prefix':         gs.prefix = val; break;
+                        case 'Trademark':      gs.trademark = val; break;
+                        case 'CommandDelay':   gs.commandDelay = Number(val); break;
                     }
                 }
 
-                /* --- Обрабатываем КНОПКИ --- */
                 if (component.type === Discord.ComponentType.Button) {
                     const isOn = component.style === SUCCESS;
 
                     switch (component.customId) {
                         case 'AllowInGameCommands':
-                            gs.inGameCommandsEnabled = isOn;
-                            break;
+                            gs.inGameCommandsEnabled = isOn; break;
                         case 'BotMutedInGame':
-                            /* SUCCESS = unmuted, DANGER = muted */
-                            gs.muteInGameBotMessages = !isOn;
-                            break;
+                            gs.muteInGameBotMessages = !isOn; break;
                         case 'InGameTeammateConnection':
-                            gs.connectionNotify = isOn;
-                            break;
+                            gs.connectionNotify = isOn; break;
                         case 'InGameTeammateAfk':
-                            gs.afkNotify = isOn;
-                            break;
+                            gs.afkNotify = isOn; break;
                         case 'InGameTeammateDeath':
-                            gs.deathNotify = isOn;
-                            break;
+                            gs.deathNotify = isOn; break;
                         case 'FcmAlarmNotification':
-                            gs.fcmAlarmNotificationEnabled = isOn;
-                            break;
+                            gs.fcmAlarmNotificationEnabled = isOn; break;
                         case 'FcmAlarmNotificationEveryone':
-                            gs.fcmAlarmNotificationEveryone = isOn;
-                            break;
+                            gs.fcmAlarmNotificationEveryone = isOn; break;
                         case 'SmartAlarmNotifyInGame':
-                            gs.smartAlarmNotifyInGame = isOn;
-                            break;
+                            gs.smartAlarmNotifyInGame = isOn; break;
                         case 'SmartSwitchNotifyInGameWhenChangedFromDiscord':
-                            gs.smartSwitchNotifyInGameWhenChangedFromDiscord = isOn;
-                            break;
+                            gs.smartSwitchNotifyInGameWhenChangedFromDiscord = isOn; break;
                         case 'LeaderCommandEnabled':
-                            gs.leaderCommandEnabled = isOn;
-                            break;
+                            gs.leaderCommandEnabled = isOn; break;
                         case 'LeaderCommandOnlyForPaired':
-                            gs.leaderCommandOnlyForPaired = isOn;
-                            break;
+                            gs.leaderCommandOnlyForPaired = isOn; break;
                         case 'MapWipeNotifyEveryone':
-                            gs.mapWipeNotifyEveryone = isOn;
-                            break;
+                            gs.mapWipeNotifyEveryone = isOn; break;
                         case 'ItemAvailableNotifyInGame':
-                            gs.itemAvailableInVendingMachineNotifyInGame = isOn;
-                            break;
+                            gs.itemAvailableInVendingMachineNotifyInGame = isOn; break;
                         case 'DisplayInformationBattlemetricsAllOnlinePlayers':
-                            gs.displayInformationBattlemetricsAllOnlinePlayers = isOn;
-                            break;
+                            gs.displayInformationBattlemetricsAllOnlinePlayers = isOn; break;
                         case 'BattlemetricsServerNameChanges':
-                            gs.battlemetricsServerNameChanges = isOn;
-                            break;
+                            gs.battlemetricsServerNameChanges = isOn; break;
                         case 'BattlemetricsTrackerNameChanges':
-                            gs.battlemetricsTrackerNameChanges = isOn;
-                            break;
+                            gs.battlemetricsTrackerNameChanges = isOn; break;
                         case 'BattlemetricsGlobalNameChanges':
-                            gs.battlemetricsGlobalNameChanges = isOn;
-                            break;
+                            gs.battlemetricsGlobalNameChanges = isOn; break;
                         case 'BattlemetricsGlobalLogin':
-                            gs.battlemetricsGlobalLogin = isOn;
-                            break;
+                            gs.battlemetricsGlobalLogin = isOn; break;
                         case 'BattlemetricsGlobalLogout':
-                            gs.battlemetricsGlobalLogout = isOn;
-                            break;
+                            gs.battlemetricsGlobalLogout = isOn; break;
                     }
 
-                    /* Notification кнопки: customId вида DiscordNotification{"setting":"..."} */
                     if (component.customId.startsWith('DiscordNotification')) {
                         try {
                             const json = component.customId.replace('DiscordNotification', '');
