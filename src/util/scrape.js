@@ -1,21 +1,6 @@
 /*
 Copyright (C) 2022 Alexander Emanuelsson (alexemanuelol)
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-https://github.com/alexemanuelol/rustplusplus
-
+...
 */
 
 const Axios = require('axios');
@@ -41,11 +26,8 @@ module.exports = {
             }), 'error');
             return null;
         }
-
         let png = response.data.match(/<img src="(.*_full.jpg)(.*?(?="))/);
-        if (png) {
-            return png[1];
-        }
+        if (png) return png[1];
         return null;
     },
 
@@ -57,80 +39,62 @@ module.exports = {
             }), 'error');
             return null;
         }
-
         let regex = new RegExp(`class="actual_persona_name">(.+?)</span>`, 'gm');
         let data = regex.exec(response.data);
-        if (data) {
-            return Utils.decodeHtml(data[1]);
-        }
+        if (data) return Utils.decodeHtml(data[1]);
         return null;
     },
 
-    /**
-     * Автоматически ищет battlemetricsId для Rust сервера.
-     * Стратегия:
-     *   1) Поиск по IP + game port
-     *   2) Поиск по IP + query port (game port + 5)
-     *   3) Поиск по названию сервера (если передан serverName)
-     * Возвращает строку с ID или null если не нашёл.
-     */
+    /* Автоматически ищет BattleMetrics ID для Rust сервера.
+       Пробует 3 способа по очереди:
+       1) IP + game port
+       2) IP + query port (game port + 5)
+       3) По названию сервера с проверкой IP
+    */
     getBattlemetricsServerId: async function (client, ip, port, serverName = null) {
         const baseUrl = 'https://api.battlemetrics.com/servers';
-        const game = 'rust';
 
         /* 1. Поиск по IP + game port */
         try {
-            const url1 = `${baseUrl}?filter[game]=${game}&filter[ids][IP]=${ip}:${port}&fields[server]=id,name,ip,port`;
-            const res1 = await Axios.get(url1);
-            if (res1.status === 200 && res1.data.data && res1.data.data.length > 0) {
-                const id = res1.data.data[0].id;
-                client.log(client.intlGet(null, 'infoCap'),
-                    `BattleMetrics: найден сервер по IP+gameport: ${id}`, 'info');
-                return id;
+            const res = await Axios.get(
+                `${baseUrl}?filter[game]=rust&filter[ids][IP]=${ip}:${port}&fields[server]=id,name,ip,port`
+            );
+            if (res.status === 200 && res.data.data && res.data.data.length > 0) {
+                return res.data.data[0].id;
             }
         }
         catch (e) { /* продолжаем */ }
 
         /* 2. Поиск по IP + query port (обычно game port + 5) */
-        const queryPort = port + 5;
         try {
-            const url2 = `${baseUrl}?filter[game]=${game}&filter[ids][IP]=${ip}:${queryPort}&fields[server]=id,name,ip,port`;
-            const res2 = await Axios.get(url2);
-            if (res2.status === 200 && res2.data.data && res2.data.data.length > 0) {
-                const id = res2.data.data[0].id;
-                client.log(client.intlGet(null, 'infoCap'),
-                    `BattleMetrics: найден сервер по IP+queryport: ${id}`, 'info');
-                return id;
+            const queryPort = port + 5;
+            const res = await Axios.get(
+                `${baseUrl}?filter[game]=rust&filter[ids][IP]=${ip}:${queryPort}&fields[server]=id,name,ip,port`
+            );
+            if (res.status === 200 && res.data.data && res.data.data.length > 0) {
+                return res.data.data[0].id;
             }
         }
         catch (e) { /* продолжаем */ }
 
-        /* 3. Поиск по названию сервера как последний вариант */
+        /* 3. Поиск по названию сервера */
         if (serverName) {
             try {
-                const encodedName = encodeURIComponent(serverName);
-                const url3 = `${baseUrl}?filter[game]=${game}&filter[search]=${encodedName}&fields[server]=id,name,ip,port&page[size]=5`;
-                const res3 = await Axios.get(url3);
-                if (res3.status === 200 && res3.data.data && res3.data.data.length > 0) {
-                    /* Ищем точное совпадение по IP среди результатов */
-                    const exactMatch = res3.data.data.find(s => s.attributes.ip === ip);
-                    if (exactMatch) {
-                        client.log(client.intlGet(null, 'infoCap'),
-                            `BattleMetrics: найден сервер по имени+IP: ${exactMatch.id}`, 'info');
-                        return exactMatch.id;
-                    }
-                    /* Если точного нет — берём первый результат */
-                    const id = res3.data.data[0].id;
-                    client.log(client.intlGet(null, 'infoCap'),
-                        `BattleMetrics: найден сервер по имени (первый результат): ${id}`, 'info');
-                    return id;
+                const encoded = encodeURIComponent(serverName);
+                const res = await Axios.get(
+                    `${baseUrl}?filter[game]=rust&filter[search]=${encoded}&fields[server]=id,name,ip,port&page[size]=5`
+                );
+                if (res.status === 200 && res.data.data && res.data.data.length > 0) {
+                    /* Сначала ищем точное совпадение по IP */
+                    const exact = res.data.data.find(s => s.attributes.ip === ip);
+                    if (exact) return exact.id;
+                    /* Иначе первый результат */
+                    return res.data.data[0].id;
                 }
             }
             catch (e) { /* не нашли */ }
         }
 
-        client.log(client.intlGet(null, 'infoCap'),
-            `BattleMetrics: не удалось найти сервер ${ip}:${port}`, 'info');
         return null;
     },
 };
