@@ -1001,7 +1001,8 @@ module.exports = {
 
             const user = await DiscordTools.getUserById(guildId, credentials[credential].discord_user_id);
             names += `${user.user.username}\n`;
-            steamIds += `${credential}\n`;
+            /* Steam ID as clickable link */
+            steamIds += `[${credential}](${Constants.STEAM_PROFILES_URL}${credential})\n`;
             hoster += `${credential === credentials.hoster ? `${Constants.LEADER_EMOJI}\n` : '\u200B\n'}`;
         }
 
@@ -1009,12 +1010,23 @@ module.exports = {
         if (steamIds === '') steamIds = Client.client.intlGet(guildId, 'empty');
         if (hoster === '') hoster = Client.client.intlGet(guildId, 'empty');
 
+        /* Railway redeploy hint */
+        const envString = InstanceUtils.getCredentialsEnvString(guildId);
+        let railwayHint = '';
+        if (envString) {
+            railwayHint = `\n> **Railway / редеплой:** чтобы credentials не терялись при редеплое, ` +
+                `задай переменную окружения в Railway Dashboard:\n` +
+                `> \`CREDENTIALS_${guildId}\` = \`${envString.substring(0, 40)}...\`\n` +
+                `> (полное значение в логах бота при последнем \`/credentials add\`)`;
+        }
+
         return module.exports.getEmbed({
             color: Constants.COLOR_DEFAULT,
             title: Client.client.intlGet(guildId, 'fcmCredentials'),
+            description: railwayHint || undefined,
             fields: [
                 { name: Client.client.intlGet(guildId, 'name'), value: names, inline: true },
-                { name: 'SteamID', value: steamIds, inline: true },
+                { name: 'Steam', value: steamIds, inline: true },
                 { name: Client.client.intlGet(guildId, 'hoster'), value: hoster, inline: true }]
         });
     },
