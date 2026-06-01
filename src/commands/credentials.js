@@ -26,6 +26,7 @@ const DiscordEmbeds = require('../discordTools/discordEmbeds.js');
 const DiscordMessages = require('../discordTools/discordMessages.js');
 const DiscordTools = require('../discordTools/discordTools.js');
 const InstanceUtils = require('../util/instanceUtils.js');
+const SetupSettingsMenu = require('../discordTools/SetupSettingsMenu.js');
 
 module.exports = {
     name: 'credentials',
@@ -144,6 +145,9 @@ async function addCredentials(client, interaction, verifyId) {
     if (isHoster) credentials.hoster = steamId;
 
     InstanceUtils.writeCredentialsFile(guildId, credentials);
+
+    /* Update account message in settings channel */
+    try { await SetupSettingsMenu.updateAccountMessage(client, guildId); } catch (e) { /* ignore */ }
 
     /* Start Fcm Listener */
     if (isHoster) {
@@ -276,6 +280,9 @@ async function setHosterCredentials(client, interaction, verifyId) {
     const prevHoster = credentials.hoster;
     credentials.hoster = steamId;
     InstanceUtils.writeCredentialsFile(guildId, credentials);
+
+    /* Update account message in settings channel */
+    try { await SetupSettingsMenu.updateAccountMessage(client, guildId); } catch (e) { /* ignore */ }
 
     const instance = client.getInstance(guildId);
     const rustplus = client.rustplusInstances[guildId];
