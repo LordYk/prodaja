@@ -234,6 +234,25 @@ async function pairingServer(client, guild, title, message, body) {
         }
     }
 
+    /* Fallback: если поиск по названию не дал результата — ищем по IP+порту */
+    if (!battlemetricsId) {
+        client.log(client.intlGet(null, 'infoCap'),
+            `[FcmListener] BM by name failed, trying IP lookup: ${body.ip}:${body.port}`);
+        battlemetricsId = await Scrape.getBattlemetricsServerId(
+            client, body.ip, parseInt(body.port), title);
+
+        if (battlemetricsId && !client.battlemetricsInstances.hasOwnProperty(battlemetricsId)) {
+            const bmFallback = new Battlemetrics(battlemetricsId, null);
+            await bmFallback.setup();
+            if (bmFallback.lastUpdateSuccessful) {
+                client.battlemetricsInstances[battlemetricsId] = bmFallback;
+            }
+            else {
+                battlemetricsId = null;
+            }
+        }
+    }
+
     instance.serverList[serverId] = {
         title: title,
         serverIp: body.ip,
@@ -251,8 +270,11 @@ async function pairingServer(client, guild, title, message, body) {
         switchGroups: server ? server.switchGroups : {},
         messageId: (messageObj !== undefined) ? messageObj.id : null,
         battlemetricsId: battlemetricsId,
-        connect: (!bmInstance.lastUpdateSuccessful) ? null :
-            `connect ${bmInstance.server_ip}:${bmInstance.server_port}`,
+        connect: (battlemetricsId !== null && bmInstance.lastUpdateSuccessful) ?
+            `connect ${bmInstance.server_ip}:${bmInstance.server_port}` :
+            (battlemetricsId !== null && client.battlemetricsInstances[battlemetricsId]) ?
+                `connect ${client.battlemetricsInstances[battlemetricsId].server_ip}:${client.battlemetricsInstances[battlemetricsId].server_port}` :
+                null,
         cargoShipEgressTimeMs: server ? server.cargoShipEgressTimeMs : Constants.DEFAULT_CARGO_SHIP_EGRESS_TIME_MS,
         oilRigLockedCrateUnlockTimeMs: server ? server.oilRigLockedCrateUnlockTimeMs :
             Constants.DEFAULT_OIL_RIG_LOCKED_CRATE_UNLOCK_TIME_MS,
