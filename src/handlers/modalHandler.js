@@ -317,6 +317,28 @@ module.exports = async (client, interaction) => {
             return;
         }
 
+        /* Auto-search battlemetricsId if missing */
+        if (!tracker.battlemetricsId) {
+            const server = instance.serverList[tracker.serverId];
+            if (server) {
+                const Scrape = require('../util/scrape.js');
+                const Battlemetrics = require('../structures/Battlemetrics.js');
+                const foundId = await Scrape.getBattlemetricsServerId(
+                    client, server.serverIp, parseInt(server.appPort), server.title);
+                if (foundId) {
+                    tracker.battlemetricsId = foundId;
+                    if (!client.battlemetricsInstances.hasOwnProperty(foundId)) {
+                        const bmNew = new Battlemetrics(foundId, null);
+                        await bmNew.setup();
+                        if (bmNew.lastUpdateSuccessful) {
+                            client.battlemetricsInstances[foundId] = bmNew;
+                        }
+                    }
+                    client.setInstance(interaction.guildId, instance);
+                }
+            }
+        }
+
         const isSteamId64 = id.length === Constants.STEAMID64_LENGTH ? true : false;
         const bmInstance = client.battlemetricsInstances[tracker.battlemetricsId];
 
