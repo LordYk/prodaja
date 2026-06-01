@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2022 Alexander Emanuelsson (alexemanueloll)
+    Copyright (C) 2022 Alexander Emanuelsson (alexemanuelol)
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@ const DiscordButtons = require('./discordButtons.js');
 const DiscordEmbeds = require('./discordEmbeds.js');
 const DiscordSelectMenus = require('./discordSelectMenus.js');
 const DiscordTools = require('./discordTools.js');
+const RestoreSettingsFromDiscord = require('./RestoreSettingsFromDiscord.js');
 
 module.exports = async (client, guild, forced = false) => {
     const instance = client.getInstance(guild.id);
@@ -37,33 +38,36 @@ module.exports = async (client, guild, forced = false) => {
         return;
     }
 
-    /* Проверяем есть ли уже сообщения в канале настроек.
-       Если канал не пустой — настройки уже были созданы ранее (например после редеплоя на Railway).
-       Пересоздаём только если канал пустой или forced=true. */
+    /* Проверяем есть ли уже сообщения в канале настроек */
     let channelMessages = [];
     try {
         const fetched = await channel.messages.fetch({ limit: 5 });
         channelMessages = [...fetched.values()];
     }
-    catch (e) {
-        /* Ignore */
-    }
+    catch (e) { /* Ignore */ }
 
     const channelIsEmpty = channelMessages.length === 0;
 
-    if (channelIsEmpty || forced) {
-        await DiscordTools.clearTextChannel(guild.id, instance.channelId.settings, 100);
+    if (!channelIsEmpty && !forced) {
+        /* Канал не пустой — восстанавливаем настройки из Discord-сообщений,
+           чтобы не потерять изменения пользователя после редеплоя на Railway */
+        await RestoreSettingsFromDiscord(client, guild);
 
-        await setupGeneralSettings(client, guild.id, channel);
-        await setupNotificationSettings(client, guild.id, channel);
+        if (instance.firstTime) {
+            instance.firstTime = false;
+            client.setInstance(guild.id, instance);
+        }
+        return;
     }
 
-    /* Всегда сбрасываем firstTime после прохода setupGuild */
-    if (instance.firstTime) {
-        instance.firstTime = false;
-        client.setInstance(guild.id, instance);
-    }
+    /* Канал пустой или forced=true — создаём меню настроек заново */
+    await DiscordTools.clearTextChannel(guild.id, instance.channelId.settings, 100);
 
+    await setupGeneralSettings(client, guild.id, channel);
+    await setupNotificationSettings(client, guild.id, channel);
+
+    instance.firstTime = false;
+    client.setInstance(guild.id, instance);
 };
 
 async function setupGeneralSettings(client, guildId, channel) {
