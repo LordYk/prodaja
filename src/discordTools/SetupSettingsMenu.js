@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2022 Alexander Emanuelsson (alexemanuelol)
+    Copyright (C) 2022 Alexander Emanuelsson (alexemanueloll)
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -37,12 +37,29 @@ module.exports = async (client, guild, forced = false) => {
         return;
     }
 
-    if (instance.firstTime || forced) {
+    /* Проверяем есть ли уже сообщения в канале настроек.
+       Если канал не пустой — настройки уже были созданы ранее (например после редеплоя на Railway).
+       Пересоздаём только если канал пустой или forced=true. */
+    let channelMessages = [];
+    try {
+        const fetched = await channel.messages.fetch({ limit: 5 });
+        channelMessages = [...fetched.values()];
+    }
+    catch (e) {
+        /* Ignore */
+    }
+
+    const channelIsEmpty = channelMessages.length === 0;
+
+    if (channelIsEmpty || forced) {
         await DiscordTools.clearTextChannel(guild.id, instance.channelId.settings, 100);
 
         await setupGeneralSettings(client, guild.id, channel);
         await setupNotificationSettings(client, guild.id, channel);
+    }
 
+    /* Всегда сбрасываем firstTime после прохода setupGuild */
+    if (instance.firstTime) {
         instance.firstTime = false;
         client.setInstance(guild.id, instance);
     }
