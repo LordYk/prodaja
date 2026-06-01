@@ -135,12 +135,14 @@ module.exports = {
             ];
         }
         else {
+            /* battlemetricsId is null but tracker button is still available —
+               auto-search will run when user clicks CreateTracker */
             return [
                 new Discord.ActionRowBuilder().addComponents(
                     connectionButton, linkButton, editButton, deleteButton
                 ),
                 new Discord.ActionRowBuilder().addComponents(
-                    customTimersButton, groupButton
+                    customTimersButton, trackerButton, groupButton
                 ),
                 new Discord.ActionRowBuilder().addComponents(
                     deleteUnreachableDevicesButton
