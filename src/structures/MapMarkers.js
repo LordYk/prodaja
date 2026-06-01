@@ -310,7 +310,11 @@ class MapMarkers {
 
             marker.location = pos;
 
-            if (!this.rustplus.isFirstPoll) {
+            /* Deep Sea update spawns vending machines far outside the playable map.
+               Only notify about shops that appear within the grid boundaries (with small padding). */
+            const isOutsideMap = Map.isOutsideGridSystem(marker.x, marker.y, mapSize, 0);
+
+            if (!this.rustplus.isFirstPoll && !isOutsideMap) {
                 if (!this.knownVendingMachines.some(e => e.x === marker.x && e.y === marker.y)) {
                     this.rustplus.sendEvent(
                         this.rustplus.notificationSettings.vendingMachineDetectedSetting,
