@@ -21,11 +21,13 @@
 const Discord = require('discord.js');
 
 const Config = require('../../config');
+const Battlemetrics = require('../structures/Battlemetrics.js');
 const DiscordMessages = require('../discordTools/discordMessages.js');
 const DiscordTools = require('../discordTools/discordTools.js');
 const SmartSwitchGroupHandler = require('./smartSwitchGroupHandler.js');
 const DiscordButtons = require('../discordTools/discordButtons.js');
 const DiscordModals = require('../discordTools/discordModals.js');
+const Scrape = require('../util/scrape.js');
 
 module.exports = async (client, interaction) => {
     const instance = client.getInstance(interaction.guildId);
@@ -537,13 +539,42 @@ module.exports = async (client, interaction) => {
 
         interaction.deferUpdate();
 
+        /* If battlemetricsId is missing, try to find it automatically by IP+port */
+        let battlemetricsId = server.battlemetricsId;
+        if (!battlemetricsId) {
+            client.log(client.intlGet(null, 'infoCap'),
+                `[CreateTracker] battlemetricsId missing for ${ids.serverId}, running auto-search...`);
+            battlemetricsId = await Scrape.getBattlemetricsServerId(
+                client, server.serverIp, parseInt(server.appPort), server.title);
+
+            if (battlemetricsId) {
+                /* Save found id so button becomes visible next time */
+                server.battlemetricsId = battlemetricsId;
+                if (!client.battlemetricsInstances.hasOwnProperty(battlemetricsId)) {
+                    const bmFound = new Battlemetrics(battlemetricsId, null);
+                    await bmFound.setup();
+                    if (bmFound.lastUpdateSuccessful) {
+                        client.battlemetricsInstances[battlemetricsId] = bmFound;
+                        server.connect = `connect ${bmFound.server_ip}:${bmFound.server_port}`;
+                    }
+                    else {
+                        battlemetricsId = null;
+                        server.battlemetricsId = null;
+                    }
+                }
+                client.setInstance(guildId, instance);
+                /* Refresh server message to show battlemetrics button */
+                await DiscordMessages.sendServerMessage(guildId, ids.serverId);
+            }
+        }
+
         /* Find an available tracker id */
         const trackerId = client.findAvailableTrackerId(guildId);
 
         instance.trackers[trackerId] = {
             name: 'Tracker',
             serverId: ids.serverId,
-            battlemetricsId: server.battlemetricsId,
+            battlemetricsId: battlemetricsId,
             title: server.title,
             img: server.img,
             clanTag: '',
