@@ -397,7 +397,7 @@ class Battlemetrics {
      *  This will update the instance for the first time with server data and
      *  decide if the server is streamer mode or not.
      */
-    async setup() {
+    async setup(verifyIp = null) {
         if (this.id === null && this.name === null) {
             Client.client.log(Client.client.intlGet(null, 'errorCap'),
                 Client.client.intlGet(null, 'battlemetricsIdAndNameMissing'), 'error');
@@ -405,7 +405,7 @@ class Battlemetrics {
         }
 
         if (this.id === null && this.name !== null) {
-            this.id = await this.getServerIdFromName(this.name);
+            this.id = await this.getServerIdFromName(this.name, verifyIp);
             if (!this.id) return;
         }
 
@@ -436,7 +436,7 @@ class Battlemetrics {
      *  @param {string} name The name of the server.
      *  @return {number|null} The id of the server.
      */
-    async getServerIdFromName(name) {
+    async getServerIdFromName(name, verifyIp = null) {
         const originalName = name;
         name = encodeURI(name).replace('\#', '\*');
         const search = this.SEARCH_SERVER_NAME_API_CALL(name);
@@ -448,15 +448,34 @@ class Battlemetrics {
             return null;
         }
 
+        const servers = response.data.data;
+
+        /* If we have an IP to verify against, prefer exact IP+name match first,
+           then IP-only match. This prevents picking the wrong server when multiple
+           servers share a similar name (e.g. Rusty Moose EU vs US). */
+        if (verifyIp) {
+            for (const server of servers) {
+                if (server.attributes.ip === verifyIp &&
+                    server.attributes.name === originalName) {
+                    return server.id;
+                }
+            }
+            for (const server of servers) {
+                if (server.attributes.ip === verifyIp) {
+                    return server.id;
+                }
+            }
+        }
+
         /* Find the correct server — first try exact match, then partial. */
-        for (const server of response.data.data) {
+        for (const server of servers) {
             if (server.attributes.name === originalName) {
                 return server.id;
             }
         }
 
         /* Fallback: partial match */
-        for (const server of response.data.data) {
+        for (const server of servers) {
             if (server.attributes.name &&
                 server.attributes.name.toLowerCase().includes(originalName.toLowerCase())) {
                 return server.id;
