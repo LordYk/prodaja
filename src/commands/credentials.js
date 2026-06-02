@@ -53,11 +53,11 @@ module.exports = {
                 .addStringOption(option => option
                     .setName('issued_date')
                     .setDescription('Issued date of the credentials.')
-                    .setRequired(true))
+                    .setRequired(false))
                 .addStringOption(option => option
                     .setName('expire_date')
                     .setDescription('Expire date of the credentials.')
-                    .setRequired(true))
+                    .setRequired(false))
                 .addBooleanOption(option => option
                     .setName('host')
                     .setDescription('Host the bot')
