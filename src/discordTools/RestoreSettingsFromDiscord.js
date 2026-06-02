@@ -44,6 +44,13 @@ module.exports = async (client, guild) => {
                 Fs.mkdirSync(Path.dirname(credPath), { recursive: true });
                 Fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2));
 
+                /* Это редеплой — каналы уже существуют, не нужно их пересоздавать */
+                const inst = client.getInstance(guild.id);
+                if (inst.firstTime) {
+                    inst.firstTime = false;
+                    client.setInstance(guild.id, inst);
+                }
+
                 client.log(client.intlGet(null, 'infoCap'),
                     `[RestoreSettings] Credentials restored from Discord for guild ${guild.id}`);
             } catch (e) {
