@@ -88,7 +88,7 @@ function buildAccountEmbed(client, guildId) {
         const steamLink = `[${steamId}](https://steamcommunity.com/profiles/${steamId})`;
         const discordMention = cred.discord_user_id ? `<@${cred.discord_user_id}>` : '?';
         description += `${isHoster ? '👑 ' : ''}**${discordMention}** — ${steamLink}\n`;
-        description += `> issued: \`${cred.issued_date || '?'}\`  expire: \`${cred.expire_date || '?'}\`\n\n`;
+        description += `> issued: \`${cred.issued_date || 'N/A'}\`  expire: \`${cred.expire_date || 'N/A'}\`\n\n`;
     }
     if (!description) description = '*Credentials не добавлены. Используй `/credentials add`*';
 
