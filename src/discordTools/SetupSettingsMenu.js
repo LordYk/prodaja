@@ -100,17 +100,6 @@ function buildAccountEmbed(client, guildId) {
         footer: { text: b64 }
     });
 }
-    if (!description) description = '*Credentials не добавлены. Используй `/credentials add`*';
-
-    const b64 = Buffer.from(JSON.stringify(credentials)).toString('base64');
-
-    return DiscordEmbeds.getEmbed({
-        color: 0x5865F2,
-        title: '👤 Аккаунт',
-        description: description,
-        footer: { text: b64 }
-    });
-}
 
 async function setupAccountMessage(client, guildId, channel) {
     await client.messageSend(channel, { embeds: [buildAccountEmbed(client, guildId)] });
