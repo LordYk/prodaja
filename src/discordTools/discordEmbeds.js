@@ -94,11 +94,29 @@ module.exports = {
         }
         description += `\n${server.description}`;
 
+        /* Encode essential server data in footer for post-redeploy restoration */
+        const serverSnapshot = {
+            title: server.title,
+            serverIp: server.serverIp,
+            appPort: server.appPort,
+            steamId: server.steamId,
+            playerToken: server.playerToken,
+            description: server.description,
+            img: server.img,
+            url: server.url,
+            battlemetricsId: server.battlemetricsId,
+            connect: server.connect,
+            cargoShipEgressTimeMs: server.cargoShipEgressTimeMs,
+            oilRigLockedCrateUnlockTimeMs: server.oilRigLockedCrateUnlockTimeMs
+        };
+        const footerText = Buffer.from(JSON.stringify(serverSnapshot)).toString('base64');
+
         return module.exports.getEmbed({
             title: `${server.title}`,
             color: Constants.COLOR_DEFAULT,
             description: description,
             thumbnail: `${server.img}`,
+            footer: { text: footerText },
             fields: [{
                 name: Client.client.intlGet(guildId, 'connect'),
                 value: `\`${server.connect === null ?
