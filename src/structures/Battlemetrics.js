@@ -454,7 +454,9 @@ class Battlemetrics {
 
         /* If we have an IP to verify against, prefer exact IP+name match first,
            then IP-only match. This prevents picking the wrong server when multiple
-           servers share a similar name (e.g. Rusty Moose EU vs US). */
+           servers share a similar name (e.g. Rusty Moose EU vs US).
+           NOTE: verifyIp may differ from BM's stored IP (e.g. CDN/proxy servers),
+           so if IP-match finds nothing we fall through to name-based matching. */
         if (verifyIp) {
             for (const server of servers) {
                 if (server.attributes.ip === verifyIp &&
@@ -467,6 +469,7 @@ class Battlemetrics {
                     return server.id;
                 }
             }
+            /* IP не совпал ни с одним результатом (прокси/CDN) — продолжаем по имени */
         }
 
         /* Find the correct server — first try exact match, then partial. */
