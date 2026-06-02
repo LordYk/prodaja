@@ -1104,7 +1104,38 @@ module.exports = async (client, interaction) => {
             return;
         }
 
-        // TODO! Remove name change icon from status
+        /* Если у трекера нет battlemetricsId, но у сервера уже есть — подтягиваем автоматически */
+        if (!tracker.battlemetricsId) {
+            const server = instance.serverList[tracker.serverId];
+            if (server && server.battlemetricsId) {
+                tracker.battlemetricsId = server.battlemetricsId;
+                client.setInstance(guildId, instance);
+            }
+            else {
+                /* Попытка найти BM ID через поиск */
+                if (server) {
+                    const foundId = await Scrape.getBattlemetricsServerId(
+                        client, server.serverIp, parseInt(server.appPort), server.title);
+                    if (foundId) {
+                        if (!client.battlemetricsInstances.hasOwnProperty(foundId)) {
+                            const bmFound = new Battlemetrics(foundId, null);
+                            await bmFound.setup();
+                            if (bmFound.lastUpdateSuccessful) {
+                                client.battlemetricsInstances[foundId] = bmFound;
+                                server.battlemetricsId = foundId;
+                                server.connect = `connect ${bmFound.server_ip}:${bmFound.server_port}`;
+                            }
+                        }
+                        else {
+                            server.battlemetricsId = foundId;
+                        }
+                        tracker.battlemetricsId = foundId;
+                        client.setInstance(guildId, instance);
+                        await DiscordMessages.sendServerMessage(guildId, tracker.serverId);
+                    }
+                }
+            }
+        }
 
         await DiscordMessages.sendTrackerMessage(guildId, ids.trackerId, interaction);
     }
