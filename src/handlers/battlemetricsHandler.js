@@ -61,6 +61,7 @@ module.exports = {
 
             for (const [trackerId, content] of Object.entries(instance.trackers)) {
                 const battlemetricsId = content.battlemetricsId;
+                if (!battlemetricsId) continue; /* Skip trackers without battlemetrics ID */
                 const bmInstance = client.battlemetricsInstances[battlemetricsId];
 
                 if (!bmInstance || !bmInstance.lastUpdateSuccessful) continue;
