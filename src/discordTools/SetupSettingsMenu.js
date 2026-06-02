@@ -80,27 +80,17 @@ function buildAccountEmbed(client, guildId) {
     const credentials = InstanceUtils.readCredentialsFile(guildId);
     const hoster = credentials.hoster;
 
-    const accounts = [];
+    let description = '';
     for (const steamId in credentials) {
         if (steamId === 'hoster') continue;
         const cred = credentials[steamId];
         const isHoster = steamId === hoster;
         const discordMention = cred.discord_user_id ? `<@${cred.discord_user_id}>` : 'неизвестно';
-        const issued = cred.issued_date || null;
-        const expire = cred.expire_date || null;
-
-        let line = `${isHoster ? '👑' : '👤'} ${discordMention}\n`;
-        line += `> 🎮 Steam: [${steamId}](https://steamcommunity.com/profiles/${steamId})\n`;
-        if (issued) line += `> 📅 Выдан: \`${issued}\`\n`;
-        if (expire) line += `> ⏰ Истекает: \`${expire}\`\n`;
-        accounts.push(line);
+        description += `${isHoster ? '👑 ' : '👤 '}${discordMention} — `;
+        description += `[${steamId}](https://steamcommunity.com/profiles/${steamId})\n`;
     }
+    if (!description) description = '*Credentials не добавлены. Используй `/credentials add`*';
 
-    const description = accounts.length > 0
-        ? accounts.join('\n')
-        : '*Credentials не добавлены. Используй `/credentials add`*';
-
-    /* Сохраняем credentials в footer (base64) для восстановления после редеплоя */
     const b64 = Buffer.from(JSON.stringify(credentials)).toString('base64');
 
     return DiscordEmbeds.getEmbed({
@@ -110,7 +100,17 @@ function buildAccountEmbed(client, guildId) {
         footer: { text: b64 }
     });
 }
+    if (!description) description = '*Credentials не добавлены. Используй `/credentials add`*';
 
+    const b64 = Buffer.from(JSON.stringify(credentials)).toString('base64');
+
+    return DiscordEmbeds.getEmbed({
+        color: 0x5865F2,
+        title: '👤 Аккаунт',
+        description: description,
+        footer: { text: b64 }
+    });
+}
 
 async function setupAccountMessage(client, guildId, channel) {
     await client.messageSend(channel, { embeds: [buildAccountEmbed(client, guildId)] });
