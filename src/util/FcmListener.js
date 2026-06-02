@@ -274,7 +274,7 @@ async function pairingServer(client, guild, title, message, body) {
             `connect ${bmInstance.server_ip}:${bmInstance.server_port}` :
             (battlemetricsId !== null && client.battlemetricsInstances[battlemetricsId]) ?
                 `connect ${client.battlemetricsInstances[battlemetricsId].server_ip}:${client.battlemetricsInstances[battlemetricsId].server_port}` :
-                null,
+                `connect ${body.ip}:${body.port}`,
         cargoShipEgressTimeMs: server ? server.cargoShipEgressTimeMs : Constants.DEFAULT_CARGO_SHIP_EGRESS_TIME_MS,
         oilRigLockedCrateUnlockTimeMs: server ? server.oilRigLockedCrateUnlockTimeMs :
             Constants.DEFAULT_OIL_RIG_LOCKED_CRATE_UNLOCK_TIME_MS,
