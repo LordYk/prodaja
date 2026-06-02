@@ -427,6 +427,7 @@ class DiscordBot extends Discord.Client {
             }
 
             for (const [trackerId, content] of Object.entries(instance.trackers)) {
+                if (!content.battlemetricsId) continue; /* Skip trackers without a battlemetrics ID */
                 if (!activeInstances.includes(content.battlemetricsId)) {
                     activeInstances.push(content.battlemetricsId);
                     if (this.battlemetricsInstances.hasOwnProperty(content.battlemetricsId)) {
