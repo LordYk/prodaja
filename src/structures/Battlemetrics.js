@@ -160,7 +160,7 @@ class Battlemetrics {
      *  @return {string} The Battlemetrics API call string.
      */
     SEARCH_SERVER_NAME_API_CALL(name) {
-        return `https://api.battlemetrics.com/servers?filter[search]=${name}&filter[game]=rust`;
+        return `https://api.battlemetrics.com/servers?filter[search]=${name}&filter[game]=rust&page[size]=100`;
     }
 
     /**
@@ -438,7 +438,9 @@ class Battlemetrics {
      */
     async getServerIdFromName(name, verifyIp = null) {
         const originalName = name;
-        name = encodeURI(name).replace('\#', '\*');
+        /* Убираем специальные символы (|, #) которые ломают поиск BM API */
+        const cleanName = name.replace(/[|#]/g, ' ').replace(/\s+/g, ' ').trim();
+        name = encodeURI(cleanName).replace('\#', '\*');
         const search = this.SEARCH_SERVER_NAME_API_CALL(name);
         const response = await this.#request(search);
 
