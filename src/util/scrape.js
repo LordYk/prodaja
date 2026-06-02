@@ -46,49 +46,61 @@ module.exports = {
     },
 
     /* Автоматически ищет BattleMetrics ID для Rust сервера.
-       Пробует 3 способа по очереди:
+       Пробует несколько способов:
        1) IP + game port
-       2) IP + query port (game port + 5)
-       3) По названию сервера с проверкой IP
+       2) IP + query port (game port + 1)
+       3) IP + query port (game port + 5)
+       4) IP + стандартный query port 28017
+       5) По названию сервера с проверкой IP
     */
     getBattlemetricsServerId: async function (client, ip, port, serverName = null) {
         const baseUrl = 'https://api.battlemetrics.com/servers';
 
-        /* 1. Поиск по IP + game port */
-        try {
-            const res = await Axios.get(
-                `${baseUrl}?filter[game]=rust&filter[ids][IP]=${ip}:${port}&fields[server]=id,name,ip,port`
-            );
-            if (res.status === 200 && res.data.data && res.data.data.length > 0) {
-                return res.data.data[0].id;
-            }
-        }
-        catch (e) { /* продолжаем */ }
+        const portsToTry = [
+            port,
+            port + 1,
+            port + 5,
+            28017,
+        ];
 
-        /* 2. Поиск по IP + query port (обычно game port + 5) */
-        try {
-            const queryPort = port + 5;
-            const res = await Axios.get(
-                `${baseUrl}?filter[game]=rust&filter[ids][IP]=${ip}:${queryPort}&fields[server]=id,name,ip,port`
-            );
-            if (res.status === 200 && res.data.data && res.data.data.length > 0) {
-                return res.data.data[0].id;
-            }
-        }
-        catch (e) { /* продолжаем */ }
+        /* Убираем дубликаты */
+        const uniquePorts = [...new Set(portsToTry)];
 
-        /* 3. Поиск по названию сервера */
+        for (const tryPort of uniquePorts) {
+            try {
+                const res = await Axios.get(
+                    `${baseUrl}?filter[game]=rust&filter[ids][IP]=${ip}:${tryPort}&fields[server]=id,name,ip,port`
+                );
+                if (res.status === 200 && res.data.data && res.data.data.length > 0) {
+                    client.log && client.log('INFO',
+                        `[Scrape] Found BM ID=${res.data.data[0].id} via IP ${ip}:${tryPort}`);
+                    return res.data.data[0].id;
+                }
+            }
+            catch (e) { /* продолжаем */ }
+        }
+
+        /* Поиск по названию сервера */
         if (serverName) {
             try {
                 const encoded = encodeURIComponent(serverName);
                 const res = await Axios.get(
-                    `${baseUrl}?filter[game]=rust&filter[search]=${encoded}&fields[server]=id,name,ip,port&page[size]=5`
+                    `${baseUrl}?filter[game]=rust&filter[search]=${encoded}&fields[server]=id,name,ip,port&page[size]=10`
                 );
                 if (res.status === 200 && res.data.data && res.data.data.length > 0) {
                     /* Сначала ищем точное совпадение по IP */
-                    const exact = res.data.data.find(s => s.attributes.ip === ip);
-                    if (exact) return exact.id;
-                    /* Иначе первый результат */
+                    const exact = res.data.data.find(s => s.attributes && s.attributes.ip === ip);
+                    if (exact) {
+                        client.log && client.log('INFO',
+                            `[Scrape] Found BM ID=${exact.id} via name search + IP match`);
+                        return exact.id;
+                    }
+                    /* Частичное совпадение по IP (если несколько серверов на хосте) */
+                    const partial = res.data.data.find(s => s.attributes && s.attributes.ip === ip);
+                    if (partial) return partial.id;
+                    /* Если IP не совпадает — берём первый результат (менее надёжно) */
+                    client.log && client.log('INFO',
+                        `[Scrape] Found BM ID=${res.data.data[0].id} via name search (no IP match)`);
                     return res.data.data[0].id;
                 }
             }
