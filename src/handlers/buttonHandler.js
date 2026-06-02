@@ -1104,35 +1104,57 @@ module.exports = async (client, interaction) => {
             return;
         }
 
-        /* Если у трекера нет battlemetricsId, но у сервера уже есть — подтягиваем автоматически */
+        /* Если у трекера нет battlemetricsId — ищем всеми доступными способами */
         if (!tracker.battlemetricsId) {
             const server = instance.serverList[tracker.serverId];
+
+            /* 1. Уже есть на сервере — просто берём */
             if (server && server.battlemetricsId) {
                 tracker.battlemetricsId = server.battlemetricsId;
                 client.setInstance(guildId, instance);
             }
-            else {
-                /* Попытка найти BM ID через поиск */
-                if (server) {
-                    const foundId = await Scrape.getBattlemetricsServerId(
-                        client, server.serverIp, parseInt(server.appPort), server.title);
-                    if (foundId) {
+            else if (server) {
+                let foundId = null;
+
+                /* 2. Поиск по названию с верификацией по IP (как при pairing) */
+                try {
+                    const bmByName = new Battlemetrics(null, server.title);
+                    await bmByName.setup(server.serverIp);
+                    if (bmByName.lastUpdateSuccessful && bmByName.id) {
+                        foundId = bmByName.id;
+                        client.log('INFO', `[TrackerUpdate] Found BM ID=${foundId} via name+IP`);
                         if (!client.battlemetricsInstances.hasOwnProperty(foundId)) {
-                            const bmFound = new Battlemetrics(foundId, null);
-                            await bmFound.setup();
-                            if (bmFound.lastUpdateSuccessful) {
-                                client.battlemetricsInstances[foundId] = bmFound;
-                                server.battlemetricsId = foundId;
-                                server.connect = `connect ${bmFound.server_ip}:${bmFound.server_port}`;
-                            }
+                            client.battlemetricsInstances[foundId] = bmByName;
                         }
-                        else {
-                            server.battlemetricsId = foundId;
-                        }
-                        tracker.battlemetricsId = foundId;
-                        client.setInstance(guildId, instance);
-                        await DiscordMessages.sendServerMessage(guildId, tracker.serverId);
                     }
+                } catch (e) { /* продолжаем */ }
+
+                /* 3. Fallback — scrape по IP с правильным gamePort */
+                if (!foundId) {
+                    const appPort = parseInt(server.appPort);
+                    const gamePort = appPort > 28050 ? appPort - 67 : appPort;
+                    foundId = await Scrape.getBattlemetricsServerId(
+                        client, server.serverIp, gamePort, server.title);
+                    if (foundId && !client.battlemetricsInstances.hasOwnProperty(foundId)) {
+                        const bmFound = new Battlemetrics(foundId, null);
+                        await bmFound.setup();
+                        if (bmFound.lastUpdateSuccessful) {
+                            client.battlemetricsInstances[foundId] = bmFound;
+                        } else {
+                            foundId = null;
+                        }
+                    }
+                }
+
+                if (foundId) {
+                    const bmInstance = client.battlemetricsInstances[foundId];
+                    server.battlemetricsId = foundId;
+                    if (bmInstance && bmInstance.server_ip) {
+                        server.connect = `connect ${bmInstance.server_ip}:${bmInstance.server_port}`;
+                    }
+                    tracker.battlemetricsId = foundId;
+                    client.setInstance(guildId, instance);
+                    await DiscordMessages.sendServerMessage(guildId, tracker.serverId);
                 }
             }
         }
