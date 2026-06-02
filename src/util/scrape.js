@@ -60,7 +60,9 @@ module.exports = {
         };
 
         /* ── 1. Перебираем порты ─────────────────────────────────────────── */
-        const portsToTry = ip ? [...new Set([port, port + 1, port + 5, 28015, 28017])] : [];
+        /* appPort (Rust+) → gamePort: стандартная разница = 67 (28082 → 28015) */
+        const gamePort = port > 28050 ? port - 67 : port;
+        const portsToTry = ip ? [...new Set([gamePort, port, port + 1, port + 5, 28015, 28017])] : [];
 
         for (const tryPort of portsToTry) {
             try {
