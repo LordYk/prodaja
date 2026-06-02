@@ -281,9 +281,12 @@ module.exports = {
             })),
             new Discord.ActionRowBuilder().addComponents(TextInput.getTextInput({
                 customId: 'TrackerBattlemetricsId',
-                label: Client.client.intlGet(guildId, 'battlemetricsId'),
-                value: tracker.battlemetricsId,
-                style: Discord.TextInputStyle.Short
+                label: Client.client.intlGet(guildId, 'battlemetricsId') + ' (или название сервера)',
+                value: tracker.battlemetricsId !== null ? tracker.battlemetricsId : '',
+                placeholder: 'ID или название сервера на Battlemetrics',
+                style: Discord.TextInputStyle.Short,
+                required: false,
+                minLength: 0
             })),
             new Discord.ActionRowBuilder().addComponents(TextInput.getTextInput({
                 customId: 'TrackerClanTag',
