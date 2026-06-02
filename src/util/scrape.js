@@ -60,7 +60,7 @@ module.exports = {
         };
 
         /* ── 1. Перебираем порты ─────────────────────────────────────────── */
-        const portsToTry = [...new Set([port, port + 1, port + 5, 28015, 28017])];
+        const portsToTry = ip ? [...new Set([port, port + 1, port + 5, 28015, 28017])] : [];
 
         for (const tryPort of portsToTry) {
             try {
