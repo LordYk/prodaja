@@ -1075,17 +1075,17 @@ module.exports = {
 
     getHelpEmbed: function (guildId) {
         const description =
-            `## 🛠️ Поддержка\n\n` +
-            `Если вы нашли какой-то баг или есть какие-нибудь вопросы — можете лично написать:\n\n` +
-            `> 💬 **Дискорд:** \`llbboonnggg\`\n` +
-            `> 📱 **Телеграм:** [@lksfan](https://t.me/lksfan)`;
+            `Если у вас появились какие-нибудь вопросы или предложения — пишите:\n\n` +
+            `> 💬 **Дс:** \`llbboonnggg\`\n` +
+            `> 📱 **Тг:** [@lksfan](https://t.me/lksfan)\n` +
+            `> 📧 **Почта:** \`rrinfo46@gmail.com\``;
 
         return module.exports.getEmbed({
             color: 0x5865F2,
             timestamp: true,
-            title: `❓ Помощь`,
+            title: `🛠️ Поддержка`,
             description: description,
-            footer: { text: 'Rust+ Bot' }
+            footer: { text: 'Rust+ Bot • /help' }
         });
     },
 
