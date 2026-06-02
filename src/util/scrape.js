@@ -97,7 +97,7 @@ module.exports = {
                     const encoded = encodeURIComponent(name);
                     const res = await Axios.get(
                         `${baseUrl}?filter[game]=rust&filter[search]=${encoded}` +
-                        `&fields[server]=id,name,ip,port&page[size]=20`,
+                        `&fields[server]=id,name,ip,port&page[size]=100`,
                         { timeout: 8000 }
                     );
 
