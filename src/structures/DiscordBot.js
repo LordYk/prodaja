@@ -226,6 +226,13 @@ class DiscordBot extends Discord.Client {
             await PermissionHandler.resetPermissionsAllChannels(this, guild);
         }
 
+        /* Восстанавливаем credentials из Discord ДО запуска FcmListener,
+           чтобы FCM-слушатель получил правильные токены после редеплоя */
+        if (!firstTime) {
+            const RestoreSettingsFromDiscord = require('../discordTools/RestoreSettingsFromDiscord.js');
+            await RestoreSettingsFromDiscord(this, guild);
+        }
+
         require('../util/FcmListener')(this, guild);
         const credentials = InstanceUtils.readCredentialsFile(guild.id);
         for (const steamId of Object.keys(credentials)) {
