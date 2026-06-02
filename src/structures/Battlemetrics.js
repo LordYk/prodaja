@@ -448,9 +448,17 @@ class Battlemetrics {
             return null;
         }
 
-        /* Find the correct server. */
+        /* Find the correct server — first try exact match, then partial. */
         for (const server of response.data.data) {
             if (server.attributes.name === originalName) {
+                return server.id;
+            }
+        }
+
+        /* Fallback: partial match */
+        for (const server of response.data.data) {
+            if (server.attributes.name &&
+                server.attributes.name.toLowerCase().includes(originalName.toLowerCase())) {
                 return server.id;
             }
         }
