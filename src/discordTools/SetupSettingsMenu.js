@@ -80,18 +80,27 @@ function buildAccountEmbed(client, guildId) {
     const credentials = InstanceUtils.readCredentialsFile(guildId);
     const hoster = credentials.hoster;
 
-    let description = '';
+    const accounts = [];
     for (const steamId in credentials) {
         if (steamId === 'hoster') continue;
         const cred = credentials[steamId];
         const isHoster = steamId === hoster;
-        const steamLink = `[${steamId}](https://steamcommunity.com/profiles/${steamId})`;
-        const discordMention = cred.discord_user_id ? `<@${cred.discord_user_id}>` : '?';
-        description += `${isHoster ? '👑 ' : ''}**${discordMention}** — ${steamLink}\n`;
-        description += `> issued: \`${cred.issued_date || 'N/A'}\`  expire: \`${cred.expire_date || 'N/A'}\`\n\n`;
-    }
-    if (!description) description = '*Credentials не добавлены. Используй `/credentials add`*';
+        const discordMention = cred.discord_user_id ? `<@${cred.discord_user_id}>` : 'неизвестно';
+        const issued = cred.issued_date || null;
+        const expire = cred.expire_date || null;
 
+        let line = `${isHoster ? '👑' : '👤'} ${discordMention}\n`;
+        line += `> 🎮 Steam: [${steamId}](https://steamcommunity.com/profiles/${steamId})\n`;
+        if (issued) line += `> 📅 Выдан: \`${issued}\`\n`;
+        if (expire) line += `> ⏰ Истекает: \`${expire}\`\n`;
+        accounts.push(line);
+    }
+
+    const description = accounts.length > 0
+        ? accounts.join('\n')
+        : '*Credentials не добавлены. Используй `/credentials add`*';
+
+    /* Сохраняем credentials в footer (base64) для восстановления после редеплоя */
     const b64 = Buffer.from(JSON.stringify(credentials)).toString('base64');
 
     return DiscordEmbeds.getEmbed({
@@ -101,6 +110,7 @@ function buildAccountEmbed(client, guildId) {
         footer: { text: b64 }
     });
 }
+
 
 async function setupAccountMessage(client, guildId, channel) {
     await client.messageSend(channel, { embeds: [buildAccountEmbed(client, guildId)] });
