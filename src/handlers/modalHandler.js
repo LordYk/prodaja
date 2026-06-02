@@ -264,7 +264,7 @@ module.exports = async (client, interaction) => {
         const ids = JSON.parse(interaction.customId.replace('TrackerEdit', ''));
         const tracker = instance.trackers[ids.trackerId];
         const trackerName = interaction.fields.getTextInputValue('TrackerName');
-        const trackerBattlemetricsId = interaction.fields.getTextInputValue('TrackerBattlemetricsId');
+        const rawBmInput = interaction.fields.getTextInputValue('TrackerBattlemetricsId').trim();
         const trackerClanTag = interaction.fields.getTextInputValue('TrackerClanTag');
 
         if (!tracker) {
@@ -278,8 +278,56 @@ module.exports = async (client, interaction) => {
             client.battlemetricsIntervalCounter = 0;
         }
 
-        if (trackerBattlemetricsId !== tracker.battlemetricsId) {
-            if (client.battlemetricsInstances.hasOwnProperty(trackerBattlemetricsId)) {
+        /* Определяем: числовой ID или название сервера для поиска */
+        const isNumericId = rawBmInput !== '' && /^\d+$/.test(rawBmInput);
+        const isNameSearch = rawBmInput !== '' && !isNumericId;
+        const trackerBattlemetricsId = isNameSearch ? null : (rawBmInput || null);
+
+        if (isNameSearch) {
+            /* Пользователь ввёл название — ищем на Battlemetrics */
+            client.log(client.intlGet(null, 'infoCap'),
+                `[TrackerEdit] Searching BM by name: "${rawBmInput}"`);
+            const Scrape = require('../util/scrape.js');
+            const server = instance.serverList[tracker.serverId];
+            const serverIp = server ? server.serverIp : null;
+            const serverPort = server ? parseInt(server.appPort) : null;
+            const foundId = await Scrape.getBattlemetricsServerId(client, serverIp, serverPort, rawBmInput);
+            if (foundId) {
+                client.log(client.intlGet(null, 'infoCap'),
+                    `[TrackerEdit] Found BM id=${foundId} by name search`);
+                if (client.battlemetricsInstances.hasOwnProperty(foundId)) {
+                    const bmInstance = client.battlemetricsInstances[foundId];
+                    tracker.battlemetricsId = foundId;
+                    tracker.serverId = `${bmInstance.server_ip}-${bmInstance.server_port}`;
+                    tracker.img = Constants.DEFAULT_SERVER_IMG;
+                    tracker.title = bmInstance.server_name;
+                }
+                else {
+                    const bmInstance = new Battlemetrics(foundId);
+                    await bmInstance.setup();
+                    if (bmInstance.lastUpdateSuccessful) {
+                        client.battlemetricsInstances[foundId] = bmInstance;
+                        tracker.battlemetricsId = foundId;
+                        tracker.serverId = `${bmInstance.server_ip}-${bmInstance.server_port}`;
+                        tracker.img = Constants.DEFAULT_SERVER_IMG;
+                        tracker.title = bmInstance.server_name;
+                    }
+                    else {
+                        client.log(client.intlGet(null, 'errorCap'),
+                            `[TrackerEdit] BM id ${foundId} found but setup failed`);
+                    }
+                }
+            }
+            else {
+                client.log(client.intlGet(null, 'errorCap'),
+                    `[TrackerEdit] Could not find BM server by name: "${rawBmInput}"`);
+            }
+        }
+        else if (trackerBattlemetricsId !== tracker.battlemetricsId) {
+            if (trackerBattlemetricsId === null) {
+                tracker.battlemetricsId = null;
+            }
+            else if (client.battlemetricsInstances.hasOwnProperty(trackerBattlemetricsId)) {
                 const bmInstance = client.battlemetricsInstances[trackerBattlemetricsId];
                 tracker.battlemetricsId = trackerBattlemetricsId;
                 tracker.serverId = `${bmInstance.server_ip}-${bmInstance.server_port}`;
