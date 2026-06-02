@@ -90,9 +90,15 @@ module.exports = {
         const guild = module.exports.getGuild(guildId);
 
         if (guild) {
+            /* Discord normalizes channel names: lowercase + spaces→dashes */
+            const normalizedName = name.toLowerCase().replace(/ /g, '-');
             let channel = undefined;
             try {
-                channel = guild.channels.cache.find(c => c.name === name);
+                channel = guild.channels.cache.find(c =>
+                    c.name === name ||
+                    c.name === normalizedName ||
+                    c.name.toLowerCase().replace(/ /g, '-') === normalizedName
+                );
             }
             catch (e) {
                 Client.client.log(Client.client.intlGet(null, 'errorCap'),
@@ -130,9 +136,15 @@ module.exports = {
         const guild = module.exports.getGuild(guildId);
 
         if (guild) {
+            /* Discord normalizes category names: lowercase + spaces→dashes */
+            const normalizedName = name.toLowerCase().replace(/ /g, '-');
             let category = undefined;
             try {
-                category = guild.channels.cache.find(c => c.name === name);
+                category = guild.channels.cache.find(c =>
+                    c.name === name ||
+                    c.name === normalizedName ||
+                    c.name.toLowerCase().replace(/ /g, '-') === normalizedName
+                );
             }
             catch (e) {
                 Client.client.log(Client.client.intlGet(null, 'errorCap'),
