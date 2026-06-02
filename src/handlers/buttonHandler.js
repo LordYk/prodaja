@@ -1116,13 +1116,13 @@ module.exports = async (client, interaction) => {
             else if (server) {
                 let foundId = null;
 
-                /* 2. Поиск по названию с верификацией по IP (как при pairing) */
+                /* 2. Поиск по названию (без верификации IP — IP в боте может отличаться от BM) */
                 try {
                     const bmByName = new Battlemetrics(null, server.title);
-                    await bmByName.setup(server.serverIp);
+                    await bmByName.setup(null);
                     if (bmByName.lastUpdateSuccessful && bmByName.id) {
                         foundId = bmByName.id;
-                        client.log('INFO', `[TrackerUpdate] Found BM ID=${foundId} via name+IP`);
+                        client.log('INFO', `[TrackerUpdate] Found BM ID=${foundId} via name search`);
                         if (!client.battlemetricsInstances.hasOwnProperty(foundId)) {
                             client.battlemetricsInstances[foundId] = bmByName;
                         }
