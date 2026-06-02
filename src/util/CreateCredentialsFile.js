@@ -22,8 +22,26 @@ const Fs = require('fs');
 const Path = require('path');
 
 module.exports = (client, guild) => {
-    if (!Fs.existsSync(Path.join(__dirname, '..', '..', 'credentials', `${guild.id}.json`))) {
-        Fs.writeFileSync(Path.join(__dirname, '..', '..', 'credentials', `${guild.id}.json`),
-            JSON.stringify({ hoster: null }, null, 2));
+    const path = Path.join(__dirname, '..', '..', 'credentials', `${guild.id}.json`);
+    if (!Fs.existsSync(path)) {
+        /* Сначала пробуем восстановить из env-переменной (Railway redeploy).
+           Если env не задан — создаём пустой файл. */
+        const envKey = `CREDENTIALS_${guild.id}`;
+        const envVal = process.env[envKey];
+        if (envVal) {
+            try {
+                const decoded = Buffer.from(envVal, 'base64').toString('utf8');
+                const parsed = JSON.parse(decoded);
+                Fs.mkdirSync(Path.dirname(path), { recursive: true });
+                Fs.writeFileSync(path, JSON.stringify(parsed, null, 2));
+                client.log('INFO', `[CreateCredentialsFile] Restored credentials from env for guild ${guild.id}`);
+                return;
+            }
+            catch (e) {
+                client.log('ERROR', `[CreateCredentialsFile] Failed to restore from env: ${e.message}`);
+            }
+        }
+        Fs.mkdirSync(Path.dirname(path), { recursive: true });
+        Fs.writeFileSync(path, JSON.stringify({ hoster: null }, null, 2));
     }
 };
