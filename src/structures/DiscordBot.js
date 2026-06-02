@@ -206,13 +206,22 @@ class DiscordBot extends Discord.Client {
     }
 
     async setupGuild(guild) {
-        const instance = this.getInstance(guild.id);
-        const firstTime = instance.firstTime;
-
         await require('../discordTools/RegisterSlashCommands')(this, guild);
 
-        let category = await require('../discordTools/SetupGuildCategory')(this, guild);
+        /* SetupGuildCategory и SetupGuildChannels ищут каналы по имени если instance.json
+           удалён (редеплой на Railway) — они восстанавливают channelId из Discord */
+        const category = await require('../discordTools/SetupGuildCategory')(this, guild);
         await require('../discordTools/SetupGuildChannels')(this, guild, category);
+
+        /* Восстанавливаем credentials + serverList из Discord ВСЕГДА и ДО всего остального.
+           RestoreSettingsFromDiscord сам выставит firstTime=false если найдёт данные. */
+        const RestoreSettingsFromDiscord = require('../discordTools/RestoreSettingsFromDiscord.js');
+        await RestoreSettingsFromDiscord(this, guild);
+
+        /* Перечитываем instance — RestoreSettingsFromDiscord мог изменить firstTime */
+        const instanceAfterRestore = this.getInstance(guild.id);
+        const firstTime = instanceAfterRestore.firstTime;
+
         if (firstTime) {
             const perms = PermissionHandler.getPermissionsRemoved(this, guild);
             try {
@@ -224,13 +233,6 @@ class DiscordBot extends Discord.Client {
         }
         else {
             await PermissionHandler.resetPermissionsAllChannels(this, guild);
-        }
-
-        /* Восстанавливаем credentials из Discord ДО запуска FcmListener,
-           чтобы FCM-слушатель получил правильные токены после редеплоя */
-        if (!firstTime) {
-            const RestoreSettingsFromDiscord = require('../discordTools/RestoreSettingsFromDiscord.js');
-            await RestoreSettingsFromDiscord(this, guild);
         }
 
         require('../util/FcmListener')(this, guild);
