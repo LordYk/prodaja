@@ -226,7 +226,7 @@ async function pairingServer(client, guild, title, message, body) {
 
     let battlemetricsId = null;
     const bmInstance = new Battlemetrics(null, title);
-    await bmInstance.setup();
+    await bmInstance.setup(body.ip);
     if (bmInstance.lastUpdateSuccessful) {
         battlemetricsId = bmInstance.id;
         if (!client.battlemetricsInstances.hasOwnProperty(bmInstance.id)) {
