@@ -1056,21 +1056,18 @@ module.exports = {
     },
 
     getHelpEmbed: function (guildId) {
-        const repository = 'https://github.com/alexemanuelol/rustplusplus';
-        const credentials = `${repository}/blob/master/docs/credentials.md`;
-        const pairServer = `${repository}/blob/master/docs/pair_and_connect_to_server.md`;
-        const commands = `${repository}/blob/master/docs/commands.md`;
-
         const description =
-            `→ [${Client.client.intlGet(guildId, 'commandsHelpHowToCredentials')}](${credentials})\n` +
-            `→ [${Client.client.intlGet(guildId, 'commandsHelpHowToPairServer')}](${pairServer})\n` +
-            `→ [${Client.client.intlGet(guildId, 'commandsHelpCommandList')}](${commands})`;
+            `## 🛠️ Поддержка\n\n` +
+            `Если вы нашли какой-то баг или есть какие-нибудь вопросы — можете лично написать:\n\n` +
+            `> 💬 **Дискорд:** \`llbboonnggg\`\n` +
+            `> 📱 **Телеграм:** [@lksfan](https://t.me/lksfan)`;
 
         return module.exports.getEmbed({
-            color: Constants.COLOR_DEFAULT,
+            color: 0x5865F2,
             timestamp: true,
-            title: `rustplusplus Help`,
-            description: description
+            title: `❓ Помощь`,
+            description: description,
+            footer: { text: 'Rust+ Bot' }
         });
     },
 
