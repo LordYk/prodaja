@@ -69,23 +69,66 @@ module.exports = async (client, interaction) => {
     else if (interaction.customId.startsWith('ServerEdit')) {
         const ids = JSON.parse(interaction.customId.replace('ServerEdit', ''));
         const server = instance.serverList[ids.serverId];
-        const battlemetricsId = interaction.fields.getTextInputValue('ServerBattlemetricsId');
+        const battlemetricsInput = interaction.fields.getTextInputValue('ServerBattlemetricsId').trim();
 
-        if (battlemetricsId !== server.battlemetricsId) {
-            if (battlemetricsId === '') {
-                server.battlemetricsId = null;
+        /* Определяем: это цифровой ID или название сервера? */
+        const isNumericId = /^\d+$/.test(battlemetricsInput);
+
+        if (battlemetricsInput !== (server.battlemetricsId || '')) {
+            if (battlemetricsInput === '') {
+                /* Поле очищено — пробуем найти автоматически по IP+порту+названию */
+                const foundId = await Scrape.getBattlemetricsServerId(
+                    client, server.serverIp, parseInt(server.appPort), server.title);
+                if (foundId) {
+                    if (!client.battlemetricsInstances.hasOwnProperty(foundId)) {
+                        const bmAuto = new Battlemetrics(foundId, null);
+                        await bmAuto.setup();
+                        if (bmAuto.lastUpdateSuccessful) {
+                            client.battlemetricsInstances[foundId] = bmAuto;
+                            server.battlemetricsId = foundId;
+                            server.connect = `connect ${bmAuto.server_ip}:${bmAuto.server_port}`;
+                        }
+                    }
+                    else {
+                        server.battlemetricsId = foundId;
+                    }
+                }
+                else {
+                    server.battlemetricsId = null;
+                }
             }
-            else if (client.battlemetricsInstances.hasOwnProperty(battlemetricsId)) {
-                const bmInstance = client.battlemetricsInstances[battlemetricsId];
-                server.battlemetricsId = battlemetricsId;
+            else if (!isNumericId) {
+                /* Введено название сервера — ищем по нему */
+                const foundByName = await Scrape.getBattlemetricsServerId(
+                    client, server.serverIp, parseInt(server.appPort), battlemetricsInput);
+                if (foundByName) {
+                    if (!client.battlemetricsInstances.hasOwnProperty(foundByName)) {
+                        const bmByName = new Battlemetrics(foundByName, null);
+                        await bmByName.setup();
+                        if (bmByName.lastUpdateSuccessful) {
+                            client.battlemetricsInstances[foundByName] = bmByName;
+                            server.battlemetricsId = foundByName;
+                            server.connect = `connect ${bmByName.server_ip}:${bmByName.server_port}`;
+                        }
+                    }
+                    else {
+                        server.battlemetricsId = foundByName;
+                    }
+                }
+            }
+            else if (client.battlemetricsInstances.hasOwnProperty(battlemetricsInput)) {
+                /* Введён числовой ID уже известного инстанса */
+                const bmInstance = client.battlemetricsInstances[battlemetricsInput];
+                server.battlemetricsId = battlemetricsInput;
                 server.connect = `connect ${bmInstance.server_ip}:${bmInstance.server_port}`;
             }
             else {
-                const bmInstance = new Battlemetrics(battlemetricsId);
+                /* Введён новый числовой ID — загружаем данные */
+                const bmInstance = new Battlemetrics(battlemetricsInput);
                 await bmInstance.setup();
                 if (bmInstance.lastUpdateSuccessful) {
-                    client.battlemetricsInstances[battlemetricsId] = bmInstance;
-                    server.battlemetricsId = battlemetricsId;
+                    client.battlemetricsInstances[battlemetricsInput] = bmInstance;
+                    server.battlemetricsId = battlemetricsInput;
                     server.connect = `connect ${bmInstance.server_ip}:${bmInstance.server_port}`;
                 }
             }
