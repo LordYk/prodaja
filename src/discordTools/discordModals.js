@@ -46,7 +46,7 @@ module.exports = {
         modal.addComponents(
             new Discord.ActionRowBuilder().addComponents(TextInput.getTextInput({
                 customId: 'ServerBattlemetricsId',
-                label: Client.client.intlGet(guildId, 'battlemetricsId'),
+                label: 'BattleMetrics ID (или оставь пустым — найдёт сам)',
                 value: server.battlemetricsId === null ? '' : server.battlemetricsId,
                 style: Discord.TextInputStyle.Short,
                 required: false,
