@@ -160,7 +160,7 @@ class Battlemetrics {
      *  @return {string} The Battlemetrics API call string.
      */
     SEARCH_SERVER_NAME_API_CALL(name) {
-        return `https://api.battlemetrics.com/servers?filter[search]=${name}&filter[game]=rust&page[size]=100`;
+        return `https://api.battlemetrics.com/servers?filter[search]=${name}&filter[game]=rust&page[size]=100`; /* name must be encodeURIComponent'd */
     }
 
     /**
@@ -437,60 +437,43 @@ class Battlemetrics {
      *  @return {number|null} The id of the server.
      */
     async getServerIdFromName(name, verifyIp = null) {
-        const originalName = name;
-
-        /* Строим несколько вариантов запроса:
-           1) Убираем спецсимволы (|, #, []) и лишние пробелы
-           2) Первые 3 слова (чаще всего уникально идентифицируют сервер)
-           3) Первые 2 слова */
+        /* Убираем |, #, [], () — они ломают BM поиск и заменяем двойные пробелы */
         const clean = name.replace(/[|#\[\](){}]/g, ' ').replace(/\s+/g, ' ').trim();
-        const words = clean.split(' ').filter(w => w.length > 0);
+        const words = clean.split(' ');
+
+        /* Строим несколько поисковых запросов от конкретного к общему */
         const queries = [...new Set([
-            clean,
-            words.slice(0, 3).join(' '),
-            words.slice(0, 2).join(' '),
+            clean,                             /* "Rusty Moose  US Main" → "Rusty Moose US Main" */
+            words.slice(0, 3).join(' '),       /* "Rusty Moose US" */
+            words.slice(0, 2).join(' '),       /* "Rusty Moose" */
         ])].filter(q => q.length >= 2);
 
         for (const query of queries) {
-            const encoded = encodeURIComponent(query);
-            const search = this.SEARCH_SERVER_NAME_API_CALL(encoded);
-            const response = await this.#request(search);
-
-            if (response.status !== 200 || !response.data.data || response.data.data.length === 0) {
-                continue;
-            }
+            const url = `${this.SEARCH_SERVER_NAME_API_CALL(encodeURIComponent(query))}`;
+            const response = await this.#request(url);
+            if (response.status !== 200 || !response.data.data?.length) continue;
 
             const servers = response.data.data;
 
             /* Приоритет 1: IP + точное имя */
             if (verifyIp) {
-                for (const server of servers) {
-                    if (server.attributes.ip === verifyIp &&
-                        server.attributes.name === originalName) {
-                        return server.id;
-                    }
+                for (const s of servers) {
+                    if (s.attributes.ip === verifyIp && s.attributes.name === name) return s.id;
                 }
                 /* Приоритет 2: только IP */
-                for (const server of servers) {
-                    if (server.attributes.ip === verifyIp) {
-                        return server.id;
-                    }
+                for (const s of servers) {
+                    if (s.attributes.ip === verifyIp) return s.id;
                 }
             }
 
             /* Приоритет 3: точное совпадение имени */
-            for (const server of servers) {
-                if (server.attributes.name === originalName) {
-                    return server.id;
-                }
+            for (const s of servers) {
+                if (s.attributes.name === name) return s.id;
             }
 
-            /* Приоритет 4: частичное совпадение */
-            for (const server of servers) {
-                if (server.attributes.name &&
-                    server.attributes.name.toLowerCase().includes(clean.toLowerCase())) {
-                    return server.id;
-                }
+            /* Приоритет 4: частичное совпадение чистого имени */
+            for (const s of servers) {
+                if (s.attributes.name?.toLowerCase().includes(clean.toLowerCase())) return s.id;
             }
         }
 
