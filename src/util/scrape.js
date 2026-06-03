@@ -45,119 +45,79 @@ module.exports = {
         return null;
     },
 
-    /* Автоматически ищет BattleMetrics ID для Rust сервера.
-       Пробует несколько способов:
-       1) IP + разные порты (game, +1, +5, 28017, 28015)
-       2) По полному названию сервера с проверкой IP
-       3) По сокращённому названию (первые 2-3 слова) с проверкой IP
-       4) Только по IP (без порта)
+    /* Ищет BattleMetrics ID для Rust сервера.
+       Алгоритм (от быстрого к медленному):
+       1. Прямой поиск по IP:port через BM API filter[ids][IP]
+          Перебираем все вероятные порты (appPort и его производные)
+       2. Поиск по названию сервера с проверкой IP
+          Несколько вариантов запроса: полное → 3 слова → 2 слова
     */
     getBattlemetricsServerId: async function (client, ip, port, serverName = null) {
-        const baseUrl = 'https://api.battlemetrics.com/servers';
+        const base = 'https://api.battlemetrics.com/servers';
+        const log = (msg) => { if (client?.log) client.log('INFO', `[BM] ${msg}`); };
 
-        const log = (msg) => {
-            if (client && client.log) client.log('INFO', `[Scrape/BM] ${msg}`);
-        };
+        /* ── Шаг 1: перебор портов ─────────────────────────────────────── */
+        /* Rust appPort → gamePort: стандарт +8 (28015→28023), но серверы типа
+           Rusty Moose используют нестандартные (28082 appPort, 28015 gamePort).
+           Пробуем все разумные варианты. */
+        const ports = [...new Set([
+            port,
+            port - 1, port - 2, port - 3,
+            port + 1, port + 2, port + 5,
+            port - 67, port - 68,   /* Rusty Moose: 28082-67=28015 */
+            28015, 28016, 28017,    /* стандартные Rust порты */
+        ])].filter(p => p > 0 && p < 65536);
 
-        /* ── 1. Перебираем порты ─────────────────────────────────────────── */
-        /* appPort (Rust+) → gamePort: разные серверы используют разные смещения.
-           Пробуем: -67 (Rusty Moose), -2 (стандарт Rust), +1, +5, стандартные порты. */
-        const portsToTry = ip ? [...new Set([
-            port - 67, port - 66, port - 65, // Rusty Moose и похожие
-            port - 2,  port - 1,              // стандартный Rust (gamePort+2=queryPort)
-            port,      port + 1, port + 5,    // прямой appPort
-            28015, 28016, 28017               // стандартные порты
-        ])].filter(p => p > 0) : [];
-
-        for (const tryPort of portsToTry) {
+        for (const p of ports) {
             try {
                 const res = await Axios.get(
-                    `${baseUrl}?filter[game]=rust&filter[ids][IP]=${ip}:${tryPort}&fields[server]=id,name,ip,port`,
-                    { timeout: 8000 }
-                );
-                if (res.status === 200 && res.data.data && res.data.data.length > 0) {
-                    log(`Found id=${res.data.data[0].id} via ${ip}:${tryPort}`);
+                    `${base}?filter[game]=rust&filter[ids][IP]=${ip}:${p}&fields[server]=id,name,ip,port`,
+                    { timeout: 6000 });
+                if (res.data?.data?.length > 0) {
+                    log(`Found by IP:port ${ip}:${p} → id=${res.data.data[0].id}`);
                     return res.data.data[0].id;
                 }
             }
             catch (e) { /* продолжаем */ }
         }
 
-        /* ── 2–3. Поиск по названию ─────────────────────────────────────── */
+        /* ── Шаг 2: поиск по названию ──────────────────────────────────── */
         if (serverName) {
-            /* Несколько вариантов запроса: полное имя и укороченные */
-            const namesToSearch = [serverName];
+            const clean = serverName.replace(/[|#\[\](){}]/g, ' ').replace(/\s+/g, ' ').trim();
+            const words = clean.split(' ').filter(w => w);
+            const queries = [...new Set([
+                clean,
+                words.slice(0, 3).join(' '),
+                words.slice(0, 2).join(' '),
+            ])].filter(q => q.length >= 2);
 
-            /* Убираем теги клана в начале/конце вида [TAG] или |TAG| */
-            const stripped = serverName.replace(/^[\[|({][^\]|)}\s]+[\]|)}\s]\s*/i, '').trim();
-            if (stripped && stripped !== serverName) namesToSearch.push(stripped);
-
-            /* Первые 3 слова */
-            const words = serverName.split(' ');
-            if (words.length > 3) namesToSearch.push(words.slice(0, 3).join(' '));
-
-            /* Первые 2 слова */
-            if (words.length > 2) namesToSearch.push(words.slice(0, 2).join(' '));
-
-            for (const name of namesToSearch) {
+            for (const q of queries) {
                 try {
-                    const encoded = encodeURIComponent(name);
                     const res = await Axios.get(
-                        `${baseUrl}?filter[game]=rust&filter[search]=${encoded}` +
+                        `${base}?filter[game]=rust&filter[search]=${encodeURIComponent(q)}` +
                         `&fields[server]=id,name,ip,port&page[size]=100`,
-                        { timeout: 8000 }
-                    );
+                        { timeout: 6000 });
 
-                    if (res.status !== 200 || !res.data.data || res.data.data.length === 0) continue;
+                    if (!res.data?.data?.length) continue;
+                    const servers = res.data.data;
 
-                    /* Точное совпадение по IP */
-                    const byIp = res.data.data.find(s => s.attributes && s.attributes.ip === ip);
-                    if (byIp) {
-                        log(`Found id=${byIp.id} via name="${name}" + IP match`);
-                        return byIp.id;
-                    }
+                    /* IP + точное имя */
+                    const exact = servers.find(s => s.attributes.ip === ip && s.attributes.name === serverName);
+                    if (exact) { log(`Found by name+IP exact: ${exact.id}`); return exact.id; }
 
-                    /* Точное совпадение по имени */
-                    const byName = res.data.data.find(s =>
-                        s.attributes && s.attributes.name === serverName
-                    );
-                    if (byName) {
-                        log(`Found id=${byName.id} via exact name match`);
-                        return byName.id;
-                    }
+                    /* Только IP */
+                    const byIp = servers.find(s => s.attributes.ip === ip);
+                    if (byIp) { log(`Found by IP in name results: ${byIp.id}`); return byIp.id; }
+
+                    /* Точное имя без IP проверки */
+                    const byName = servers.find(s => s.attributes.name === serverName);
+                    if (byName) { log(`Found by exact name: ${byName.id}`); return byName.id; }
                 }
                 catch (e) { /* продолжаем */ }
             }
-
-            /* ── 4. Последний шанс: поиск только по IP без порта ─────────── */
-            try {
-                const res = await Axios.get(
-                    `${baseUrl}?filter[game]=rust&filter[ids][IP]=${ip}&fields[server]=id,name,ip,port&page[size]=10`,
-                    { timeout: 8000 }
-                );
-                if (res.status === 200 && res.data.data && res.data.data.length > 0) {
-                    /* Если один результат — берём его */
-                    if (res.data.data.length === 1) {
-                        log(`Found id=${res.data.data[0].id} via IP-only search`);
-                        return res.data.data[0].id;
-                    }
-                    /* Если несколько — ищем по похожему имени */
-                    const best = res.data.data.find(s =>
-                        s.attributes && serverName &&
-                        s.attributes.name.toLowerCase().includes(serverName.split(' ')[0].toLowerCase())
-                    );
-                    if (best) {
-                        log(`Found id=${best.id} via IP-only + partial name`);
-                        return best.id;
-                    }
-                    log(`Found id=${res.data.data[0].id} via IP-only (first result)`);
-                    return res.data.data[0].id;
-                }
-            }
-            catch (e) { /* не нашли */ }
         }
 
-        log(`Could not find BM server for ip=${ip} port=${port} name="${serverName}"`);
+        log(`Not found: ip=${ip} port=${port} name="${serverName}"`);
         return null;
     },
 };
