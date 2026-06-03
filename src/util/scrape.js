@@ -61,7 +61,13 @@ module.exports = {
         const base = 'https://api.battlemetrics.com/servers';
         const log = (msg) => { if (client?.log) client.log('INFO', `[BM] ${msg}`); };
 
-        /* Шаг 1: поиск по имени (основной — надёжнее чем IP для серверов с прокси) */
+        /* Токен для авторизации — без него BM API возвращает 403 */
+        const token = process.env.BATTLEMETRICS_TOKEN ||
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbiI6IjY0M2M4NTY1ZDYwODU4M2MiLCJpYXQiOjE3ODA1MjA3MjgsIm5iZiI6MTc4MDUyMDcyOCwiaXNzIjoiaHR0cHM6Ly93d3cuYmF0dGxlbWV0cmljcy5jb20iLCJzdWIiOiJ1cm46dXNlcjoxMTk5MTEyIn0.o_FsxbzZl4l3bl-fUlKn6rC230EgNguhgKLWJsFurQs';
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const opts = (timeout) => ({ timeout, headers });
+
+        /* Поиск только по названию — надёжнее для серверов с прокси/CDN */
         if (serverName) {
             const clean = serverName.replace(/[|#\[\](){}]/g, ' ').replace(/\s+/g, ' ').trim();
             const words = clean.split(' ').filter(w => w.length > 0);
@@ -76,15 +82,15 @@ module.exports = {
                     const res = await Axios.get(
                         `${base}?filter[game]=rust&filter[search]=${encodeURIComponent(q)}` +
                         `&fields[server]=id,name,ip,port&page[size]=100`,
-                        { timeout: 8000 });
+                        opts(8000));
                     if (!res.data?.data?.length) continue;
                     const servers = res.data.data;
 
-                    /* Предпочитаем IP-совпадение если есть */
+                    /* Предпочитаем IP-совпадение */
                     const byIp = servers.find(s => s.attributes.ip === ip);
-                    if (byIp) { log(`Found by IP match in name search: ${byIp.id}`); return byIp.id; }
+                    if (byIp) { log(`Found by IP+name: ${byIp.id}`); return byIp.id; }
 
-                    /* Точное совпадение имени (сервер с прокси) */
+                    /* Точное совпадение имени */
                     const exact = servers.find(s => s.attributes.name === serverName);
                     if (exact) { log(`Found by exact name: ${exact.id}`); return exact.id; }
 
@@ -97,18 +103,17 @@ module.exports = {
             }
         }
 
-        /* Шаг 2: перебор портов по IP (для серверов без прокси) */
+        /* Fallback: перебор портов по IP */
         const ports = [...new Set([
             port, port - 1, port - 2, port + 1, port + 2, port + 5,
-            port - 67, port - 68,
-            28015, 28016, 28017,
+            port - 67, port - 68, 28015, 28016, 28017,
         ])].filter(p => p > 0 && p < 65536);
 
         for (const p of ports) {
             try {
                 const res = await Axios.get(
                     `${base}?filter[game]=rust&filter[ids][IP]=${ip}:${p}&fields[server]=id,name,ip,port`,
-                    { timeout: 6000 });
+                    opts(6000));
                 if (res.data?.data?.length > 0) {
                     log(`Found by IP:port ${ip}:${p}: ${res.data.data[0].id}`);
                     return res.data.data[0].id;
