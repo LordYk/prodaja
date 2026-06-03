@@ -338,7 +338,72 @@ class DiscordBot extends Discord.Client {
                     instance.serverList[instance.activeServer].steamId,
                     instance.serverList[instance.activeServer].playerToken);
             }
+
+            /* Фоновый поиск BattleMetrics ID для серверов у которых он null */
+            this.fillMissingBattlemetricsIds(guildId);
         });
+    }
+
+    fillMissingBattlemetricsIds(guildId) {
+        const Scrape = require('../util/scrape.js');
+        const Battlemetrics = require('../structures/Battlemetrics.js');
+        const DiscordMessages = require('../discordTools/discordMessages.js');
+
+        const instance = this.getInstance(guildId);
+        if (!instance) return;
+
+        for (const serverId of Object.keys(instance.serverList)) {
+            const server = instance.serverList[serverId];
+            if (server.battlemetricsId) continue;
+
+            /* Запускаем поиск асинхронно чтобы не блокировать запуск */
+            (async () => {
+                try {
+                    const foundId = await Scrape.getBattlemetricsServerId(
+                        this, server.serverIp, parseInt(server.appPort), server.title);
+
+                    if (!foundId) return;
+
+                    const inst = this.getInstance(guildId);
+                    if (!inst || !inst.serverList[serverId]) return;
+
+                    if (!this.battlemetricsInstances.hasOwnProperty(foundId)) {
+                        const bm = new Battlemetrics(foundId, null);
+                        await bm.setup();
+                        if (!bm.lastUpdateSuccessful) return;
+                        this.battlemetricsInstances[foundId] = bm;
+                        inst.serverList[serverId].connect =
+                            `connect ${bm.server_ip}:${bm.server_port}`;
+                    }
+
+                    inst.serverList[serverId].battlemetricsId = foundId;
+
+                    /* Обновляем трекеры этого сервера */
+                    for (const trackerId of Object.keys(inst.trackers || {})) {
+                        const tracker = inst.trackers[trackerId];
+                        if (tracker.serverId === serverId && !tracker.battlemetricsId) {
+                            tracker.battlemetricsId = foundId;
+                        }
+                    }
+
+                    this.setInstance(guildId, inst);
+
+                    /* Обновляем сообщения в Discord */
+                    await DiscordMessages.sendServerMessage(guildId, serverId);
+                    for (const trackerId of Object.keys(inst.trackers || {})) {
+                        if (inst.trackers[trackerId].serverId === serverId) {
+                            await DiscordMessages.sendTrackerMessage(guildId, trackerId);
+                        }
+                    }
+
+                    this.log('INFO',
+                        `[BM AutoFill] Found BattleMetrics ID ${foundId} for server ${server.title}`);
+                }
+                catch (e) {
+                    this.log('ERROR', `[BM AutoFill] Error for ${serverId}: ${e.message}`);
+                }
+            })();
+        }
     }
 
     resetRustplusVariables(guildId) {
