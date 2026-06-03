@@ -438,52 +438,59 @@ class Battlemetrics {
      */
     async getServerIdFromName(name, verifyIp = null) {
         const originalName = name;
-        /* Убираем специальные символы (|, #) которые ломают поиск BM API */
-        const cleanName = name.replace(/[|#]/g, ' ').replace(/\s+/g, ' ').trim();
-        name = encodeURI(cleanName).replace('\#', '\*');
-        const search = this.SEARCH_SERVER_NAME_API_CALL(name);
-        const response = await this.#request(search);
 
-        if (response.status !== 200) {
-            Client.client.log(Client.client.intlGet(null, 'errorCap'),
-                Client.client.intlGet(null, 'battlemetricsApiRequestFailed', { api_call: search }), 'error');
-            return null;
-        }
+        /* Строим несколько вариантов запроса:
+           1) Убираем спецсимволы (|, #, []) и лишние пробелы
+           2) Первые 3 слова (чаще всего уникально идентифицируют сервер)
+           3) Первые 2 слова */
+        const clean = name.replace(/[|#\[\](){}]/g, ' ').replace(/\s+/g, ' ').trim();
+        const words = clean.split(' ').filter(w => w.length > 0);
+        const queries = [...new Set([
+            clean,
+            words.slice(0, 3).join(' '),
+            words.slice(0, 2).join(' '),
+        ])].filter(q => q.length >= 2);
 
-        const servers = response.data.data;
+        for (const query of queries) {
+            const encoded = encodeURIComponent(query);
+            const search = this.SEARCH_SERVER_NAME_API_CALL(encoded);
+            const response = await this.#request(search);
 
-        /* If we have an IP to verify against, prefer exact IP+name match first,
-           then IP-only match. This prevents picking the wrong server when multiple
-           servers share a similar name (e.g. Rusty Moose EU vs US).
-           NOTE: verifyIp may differ from BM's stored IP (e.g. CDN/proxy servers),
-           so if IP-match finds nothing we fall through to name-based matching. */
-        if (verifyIp) {
+            if (response.status !== 200 || !response.data.data || response.data.data.length === 0) {
+                continue;
+            }
+
+            const servers = response.data.data;
+
+            /* Приоритет 1: IP + точное имя */
+            if (verifyIp) {
+                for (const server of servers) {
+                    if (server.attributes.ip === verifyIp &&
+                        server.attributes.name === originalName) {
+                        return server.id;
+                    }
+                }
+                /* Приоритет 2: только IP */
+                for (const server of servers) {
+                    if (server.attributes.ip === verifyIp) {
+                        return server.id;
+                    }
+                }
+            }
+
+            /* Приоритет 3: точное совпадение имени */
             for (const server of servers) {
-                if (server.attributes.ip === verifyIp &&
-                    server.attributes.name === originalName) {
+                if (server.attributes.name === originalName) {
                     return server.id;
                 }
             }
+
+            /* Приоритет 4: частичное совпадение */
             for (const server of servers) {
-                if (server.attributes.ip === verifyIp) {
+                if (server.attributes.name &&
+                    server.attributes.name.toLowerCase().includes(clean.toLowerCase())) {
                     return server.id;
                 }
-            }
-            /* IP не совпал ни с одним результатом (прокси/CDN) — продолжаем по имени */
-        }
-
-        /* Find the correct server — first try exact match, then partial. */
-        for (const server of servers) {
-            if (server.attributes.name === originalName) {
-                return server.id;
-            }
-        }
-
-        /* Fallback: partial match */
-        for (const server of servers) {
-            if (server.attributes.name &&
-                server.attributes.name.toLowerCase().includes(originalName.toLowerCase())) {
-                return server.id;
             }
         }
 
