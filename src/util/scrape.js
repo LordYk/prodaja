@@ -60,9 +60,14 @@ module.exports = {
         };
 
         /* ── 1. Перебираем порты ─────────────────────────────────────────── */
-        /* appPort (Rust+) → gamePort: стандартная разница = 67 (28082 → 28015) */
-        const gamePort = port > 28050 ? port - 67 : port;
-        const portsToTry = ip ? [...new Set([gamePort, port, port + 1, port + 5, 28015, 28017])] : [];
+        /* appPort (Rust+) → gamePort: разные серверы используют разные смещения.
+           Пробуем: -67 (Rusty Moose), -2 (стандарт Rust), +1, +5, стандартные порты. */
+        const portsToTry = ip ? [...new Set([
+            port - 67, port - 66, port - 65, // Rusty Moose и похожие
+            port - 2,  port - 1,              // стандартный Rust (gamePort+2=queryPort)
+            port,      port + 1, port + 5,    // прямой appPort
+            28015, 28016, 28017               // стандартные порты
+        ])].filter(p => p > 0) : [];
 
         for (const tryPort of portsToTry) {
             try {
