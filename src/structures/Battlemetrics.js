@@ -169,7 +169,7 @@ class Battlemetrics {
      *  @return {string} The Battlemetrics API call string.
      */
     GET_SERVER_DATA_API_CALL(id) {
-        return `https://api.battlemetrics.com/servers/${id}?include=player`;
+        return `https://api.battlemetrics.com/servers/${id}`;
     }
 
     /**
@@ -218,10 +218,14 @@ class Battlemetrics {
      */
     async #request(api_call) {
         try {
-            return await Axios.get(api_call);
+            const headers = {};
+            const token = process.env.BATTLEMETRICS_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbiI6IjY0M2M4NTY1ZDYwODU4M2MiLCJpYXQiOjE3ODA1MjA3MjgsIm5iZiI6MTc4MDUyMDcyOCwiaXNzIjoiaHR0cHM6Ly93d3cuYmF0dGxlbWV0cmljcy5jb20iLCJzdWIiOiJ1cm46dXNlcjoxMTk5MTEyIn0.o_FsxbzZl4l3bl-fUlKn6rC230EgNguhgKLWJsFurQs';
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const res = await Axios.get(api_call, { timeout: 10000, headers });
+            return res;
         }
         catch (e) {
-            return {};
+            return { status: 0, data: null };
         }
     }
 
@@ -503,7 +507,7 @@ class Battlemetrics {
             data = await this.request(this.GET_SERVER_DATA_API_CALL(this.id));
         }
 
-        if (!data) {
+        if (!data || !data.data || !data.data.attributes) {
             this.lastUpdateSuccessful = false;
             Client.client.log(Client.client.intlGet(null, 'errorCap'),
                 Client.client.intlGet(null, 'battlemetricsFailedToUpdate', { server: this.id }), 'error');
