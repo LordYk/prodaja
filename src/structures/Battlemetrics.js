@@ -160,7 +160,7 @@ class Battlemetrics {
      *  @return {string} The Battlemetrics API call string.
      */
     SEARCH_SERVER_NAME_API_CALL(name) {
-        return `https://api.battlemetrics.com/servers?filter[search]=${name}&filter[game]=rust&page[size]=100`; /* name must be encodeURIComponent'd */
+        return `https://api.battlemetrics.com/servers?filter[search]=${name}&filter[game]=rust&page[size]=100`;
     }
 
     /**
@@ -437,44 +437,43 @@ class Battlemetrics {
      *  @return {number|null} The id of the server.
      */
     async getServerIdFromName(name, verifyIp = null) {
-        /* Убираем |, #, [], () — они ломают BM поиск и заменяем двойные пробелы */
+        /* Убираем спецсимволы которые ломают BM поиск */
         const clean = name.replace(/[|#\[\](){}]/g, ' ').replace(/\s+/g, ' ').trim();
-        const words = clean.split(' ');
+        const words = clean.split(' ').filter(w => w.length > 0);
 
-        /* Строим несколько поисковых запросов от конкретного к общему */
+        /* Несколько вариантов запроса: полное имя → 3 слова → 2 слова */
         const queries = [...new Set([
-            clean,                             /* "Rusty Moose  US Main" → "Rusty Moose US Main" */
-            words.slice(0, 3).join(' '),       /* "Rusty Moose US" */
-            words.slice(0, 2).join(' '),       /* "Rusty Moose" */
+            clean,
+            words.slice(0, 3).join(' '),
+            words.slice(0, 2).join(' '),
         ])].filter(q => q.length >= 2);
 
         for (const query of queries) {
-            const url = `${this.SEARCH_SERVER_NAME_API_CALL(encodeURIComponent(query))}`;
+            const url = this.SEARCH_SERVER_NAME_API_CALL(encodeURIComponent(query));
             const response = await this.#request(url);
-            if (response.status !== 200 || !response.data.data?.length) continue;
+            if (response.status !== 200 || !response.data?.data?.length) continue;
 
             const servers = response.data.data;
 
-            /* Приоритет 1: IP + точное имя */
+            /* Приоритет 1: IP совпадает (сервер без прокси/CDN) */
             if (verifyIp) {
-                for (const s of servers) {
-                    if (s.attributes.ip === verifyIp && s.attributes.name === name) return s.id;
-                }
-                /* Приоритет 2: только IP */
                 for (const s of servers) {
                     if (s.attributes.ip === verifyIp) return s.id;
                 }
             }
 
-            /* Приоритет 3: точное совпадение имени */
+            /* Приоритет 2: точное совпадение имени (Rusty Moose с прокси — IP не совпадёт) */
             for (const s of servers) {
                 if (s.attributes.name === name) return s.id;
             }
 
-            /* Приоритет 4: частичное совпадение чистого имени */
+            /* Приоритет 3: частичное совпадение чистого имени */
             for (const s of servers) {
                 if (s.attributes.name?.toLowerCase().includes(clean.toLowerCase())) return s.id;
             }
+
+            /* Приоритет 4: первый результат (запрос достаточно специфичен) */
+            if (query === clean && servers.length === 1) return servers[0].id;
         }
 
         return null;
